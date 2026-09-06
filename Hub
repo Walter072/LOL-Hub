@@ -301,27 +301,32 @@ corner(studio, 6)
 stroke(studio, Color3.fromRGB(100, 100, 110), 1, 0.2)
 
 local studioTitle = Instance.new("TextLabel")
-studioTitle.Size = UDim2.new(1, -8, 0, 24)
-studioTitle.Position = UDim2.fromOffset(8, 4)
+studioTitle.Size = UDim2.new(1, -36, 0, 28)
+studioTitle.Position = UDim2.fromOffset(10, 4)
 studioTitle.BackgroundTransparency = 1
 studioTitle.Font = Enum.Font.GothamBold
-studioTitle.TextSize = 12
+studioTitle.TextSize = 13
 studioTitle.TextColor3 = C.text
 studioTitle.TextXAlignment = Enum.TextXAlignment.Left
 studioTitle.Text = "Properties"
 studioTitle.ZIndex = 31
 studioTitle.Parent = studio
 
-local studioList = Instance.new("ScrollingFrame")
-studioList.Size = UDim2.new(1, -12, 1, -36)
-studioList.Position = UDim2.fromOffset(6, 30)
-studioList.BackgroundTransparency = 1
-studioList.BorderSizePixel = 0
-studioList.ScrollBarThickness = 3
-studioList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-studioList.CanvasSize = UDim2.new()
-studioList.ZIndex = 31
-studioList.Parent = studio
+local studioClose = Instance.new("TextButton")
+studioClose.Size = UDim2.fromOffset(24, 24)
+studioClose.Position = UDim2.new(1, -28, 0, 6)
+studioClose.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+studioClose.Text = "X"
+studioClose.Font = Enum.Font.GothamBold
+studioClose.TextSize = 12
+studioClose.TextColor3 = C.text
+studioClose.ZIndex = 32
+studioClose.Parent = studio
+corner(studioClose, 5)
+
+studioClose.MouseButton1Click:Connect(function()
+    studio.Visible = false
+end)
 
 local studioLay = Instance.new("UIListLayout")
 studioLay.Padding = UDim.new(0, 4)
