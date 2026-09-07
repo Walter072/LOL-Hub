@@ -694,7 +694,6 @@ addTab("LocalPlayer", function()
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.WalkSpeed = v end
     end)
-     then
     local function notify(title, msg, seconds)
     seconds = seconds or 3
     local f = Instance.new("Frame")
