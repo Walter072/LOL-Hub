@@ -2,14 +2,15 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
 
 local old = PlayerGui:FindFirstChild("LOLHub")
 if old then old:Destroy() end
 
---==================== SCRIPT ZONE (callbacks) ====================
--- Aquí pones la lógica. Los botones solo llaman LOL.Run("id")
 getgenv().LOL = getgenv().LOL or {}
 local LOL = getgenv().LOL
 LOL.Actions = LOL.Actions or {}
@@ -22,18 +23,14 @@ function LOL.Run(id, ...)
     local fn = LOL.Actions[id]
     if type(fn) == "function" then
         local ok, err = pcall(fn, ...)
-        if not ok then
-            warn("[LOL] Action error:", id, err)
-        end
+        if not ok then warn("[LOL] Action error:", id, err) end
         return ok
     end
     warn("[LOL] Unknown action:", id)
     return false
 end
 
---==================== WEBHOOK BETA ====================
--- Pon tu URL o: getgenv().LOL_WEBHOOK = "https://discord.com/api/webhooks/..."
-LOL.WebhookURL = getgenv().LOL_WEBHOOK or ""
+LOL.WebhookURL = getgenv().LOL_WEBHOOK or LOL.WebhookURL or ""
 LOL.WebhookEnabled = getgenv().LOL_WEBHOOK_ENABLED ~= false
 
 local function requestHttp(opts)
@@ -45,7 +42,9 @@ local function requestHttp(opts)
 end
 
 function LOL.Webhook(title, description, color)
-    if not LOL.WebhookEnabled or LOL.WebhookURL == "" then return end
+    if not LOL.WebhookEnabled then return end
+    local url = LOL.WebhookURL or getgenv().LOL_WEBHOOK or ""
+    if url == "" then return end
     color = color or 1402531
     local body = HttpService:JSONEncode({
         username = "LOL Hub",
@@ -60,7 +59,7 @@ function LOL.Webhook(title, description, color)
     task.spawn(function()
         pcall(function()
             requestHttp({
-                Url = LOL.WebhookURL,
+                Url = url,
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body = body,
@@ -69,7 +68,6 @@ function LOL.Webhook(title, description, color)
     end)
 end
 
--- Atajos beta (ejemplos)
 function LOL.AnnounceFruit(fruitName)
     LOL.Webhook("Fruit", "You just got **" .. tostring(fruitName) .. "**", 16753920)
 end
@@ -78,15 +76,123 @@ function LOL.Announce(msg)
     LOL.Webhook("LOL Hub", tostring(msg), 1402531)
 end
 
---==================== REGISTER YOUR SCRIPTS HERE ====================
-LOL.Register("inf_jump_on", function()
-    LOL.Announce("Inf Jump enabled")
-end)
+--==================== FULLBRIGHT ====================
+local fbOn = false
+local fbConn = nil
+local fbBackup = nil
 
-LOL.Register("inf_jump_off", function()
-    LOL.Announce("Inf Jump disabled")
-end)
+local function setFullbright(on)
+    fbOn = on
+    if on then
+        if not fbBackup then
+            fbBackup = {
+                Brightness = Lighting.Brightness,
+                ClockTime = Lighting.ClockTime,
+                FogEnd = Lighting.FogEnd,
+                GlobalShadows = Lighting.GlobalShadows,
+                Ambient = Lighting.Ambient,
+            }
+        end
+        if fbConn then fbConn:Disconnect() end
+        fbConn = RunService.RenderStepped:Connect(function()
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.FogEnd = 9e9
+            Lighting.GlobalShadows = false
+            Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+        end)
+    else
+        if fbConn then fbConn:Disconnect() fbConn = nil end
+        if fbBackup then
+            Lighting.Brightness = fbBackup.Brightness
+            Lighting.ClockTime = fbBackup.ClockTime
+            Lighting.FogEnd = fbBackup.FogEnd
+            Lighting.GlobalShadows = fbBackup.GlobalShadows
+            Lighting.Ambient = fbBackup.Ambient
+        end
+    end
+end
 
+--==================== ESP ====================
+local espOn = false
+local espFolder = nil
+local espConns = {}
+
+local function clearESP()
+    for _, c in pairs(espConns) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(espConns)
+    if espFolder then
+        espFolder:Destroy()
+        espFolder = nil
+    end
+end
+
+local function addEspToChar(plr, char)
+    if not espOn or not char or plr == LocalPlayer then return end
+    if not espFolder then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+    if not hrp then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = plr.Name .. "_HL"
+    highlight.Adornee = char
+    highlight.FillColor = Color3.fromRGB(140, 25, 35)
+    highlight.OutlineColor = Color3.fromRGB(255, 220, 100)
+    highlight.FillTransparency = 0.55
+    highlight.OutlineTransparency = 0
+    highlight.Parent = espFolder
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = plr.Name .. "_BB"
+    bb.Adornee = hrp
+    bb.Size = UDim2.fromOffset(120, 30)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Parent = espFolder
+
+    local lab = Instance.new("TextLabel")
+    lab.Size = UDim2.fromScale(1, 1)
+    lab.BackgroundTransparency = 1
+    lab.Font = Enum.Font.GothamBold
+    lab.TextSize = 12
+    lab.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lab.TextStrokeTransparency = 0.5
+    lab.Text = plr.Name
+    lab.Parent = bb
+end
+
+local function refreshESP()
+    clearESP()
+    if not espOn then return end
+    espFolder = Instance.new("Folder")
+    espFolder.Name = "LOLESP"
+    espFolder.Parent = game:GetService("CoreGui")
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            addEspToChar(plr, plr.Character)
+        end
+        espConns[#espConns + 1] = plr.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            if espOn then addEspToChar(plr, char) end
+        end)
+    end
+    espConns[#espConns + 1] = Players.PlayerAdded:Connect(function(plr)
+        espConns[#espConns + 1] = plr.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            if espOn then addEspToChar(plr, char) end
+        end)
+    end)
+end
+
+local function setESP(on)
+    espOn = on
+    if on then refreshESP() else clearESP() end
+end
+
+--==================== ACTIONS ====================
 LOL.Register("rejoin", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
@@ -108,7 +214,7 @@ LOL.Register("jumppower", function(v)
     end
 end)
 
---==================== COLORS / UI ====================
+--==================== UI ====================
 local C = {
     win = Color3.fromRGB(18, 20, 26),
     sidebar = Color3.fromRGB(12, 14, 18),
@@ -172,7 +278,6 @@ local loadBarBg = Instance.new("Frame")
 loadBarBg.Size = UDim2.new(1, -40, 0, 16)
 loadBarBg.Position = UDim2.fromOffset(20, 50)
 loadBarBg.BackgroundColor3 = C.barBg
-loadBarBg.BackgroundTransparency = 0.2
 loadBarBg.Parent = loadFrame
 corner(loadBarBg, 6)
 
@@ -206,9 +311,7 @@ corner(loadInfo, 8)
 
 local function setLoad(pct, msg)
     pct = math.clamp(pct, 0, 100)
-    TweenService:Create(loadBar, TweenInfo.new(0.2), {
-        Size = UDim2.new(pct / 100, 0, 1, 0),
-    }):Play()
+    TweenService:Create(loadBar, TweenInfo.new(0.2), { Size = UDim2.new(pct / 100, 0, 1, 0) }):Play()
     loadPct.Text = math.floor(pct) .. "%"
     if msg then loadInfo.Text = msg end
 end
@@ -231,8 +334,7 @@ stroke(toggleBtn, C.stroke, 2, 0.2)
 do
     local dragging, dragStart, startPos, moved
     toggleBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             moved = false
             dragStart = input.Position
@@ -244,14 +346,10 @@ do
     end)
     UserInputService.InputChanged:Connect(function(input)
         if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             local d = input.Position - dragStart
             if d.Magnitude > 6 then moved = true end
-            toggleBtn.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y
-            )
+            toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end
     end)
     toggleBtn.MouseButton1Click:Connect(function()
@@ -275,8 +373,7 @@ stroke(hub, Color3.fromRGB(80, 90, 110), 1, 0.3)
 do
     local dragging, start, startPos
     hub.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             start = input.Position
             startPos = hub.Position
@@ -287,13 +384,9 @@ do
     end)
     UserInputService.InputChanged:Connect(function(input)
         if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             local d = input.Position - start
-            hub.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y
-            )
+            hub.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end
     end)
 end
@@ -362,10 +455,8 @@ tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 tabScroll.CanvasSize = UDim2.new()
 tabScroll.Parent = sidebar
 
-local tabLayout = Instance.new("UIListLayout")
-tabLayout.Padding = UDim.new(0, 3)
-tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-tabLayout.Parent = tabScroll
+Instance.new("UIListLayout", tabScroll).Padding = UDim.new(0, 3)
+tabScroll:FindFirstChildOfClass("UIListLayout").SortOrder = Enum.SortOrder.LayoutOrder
 
 local content = Instance.new("ScrollingFrame")
 content.Size = UDim2.new(1, -158, 1, 0)
@@ -404,7 +495,6 @@ studio.Visible = false
 studio.ZIndex = 30
 studio.Parent = gui
 corner(studio, 6)
-stroke(studio, Color3.fromRGB(100, 100, 110), 1, 0.2)
 
 local studioTitle = Instance.new("TextLabel")
 studioTitle.Size = UDim2.new(1, -36, 0, 28)
@@ -429,9 +519,7 @@ studioClose.TextColor3 = C.text
 studioClose.ZIndex = 32
 studioClose.Parent = studio
 corner(studioClose, 5)
-studioClose.MouseButton1Click:Connect(function()
-    studio.Visible = false
-end)
+studioClose.MouseButton1Click:Connect(function() studio.Visible = false end)
 
 local studioList = Instance.new("ScrollingFrame")
 studioList.Size = UDim2.new(1, -12, 1, -40)
@@ -492,51 +580,16 @@ local function studioRow(label, value, onSubmit)
 end
 
 local function openStudio(props)
-    if not getgenv().LOL_StudioEditor then
-        warn("[LOL] Studio editor is disabled in Settings")
-        return
-    end
+    if not getgenv().LOL_StudioEditor then return end
     clearStudio()
-    studioTitle.Text = "Properties"
     for _, p in ipairs(props) do
         studioRow(p.name, p.value, function(text)
             local n = tonumber(text)
-            if n ~= nil and p.apply then
-                p.apply(n)
-                p.value = n
-            elseif p.apply then
-                p.apply(text)
-                p.value = text
-            end
+            if n ~= nil and p.apply then p.apply(n) p.value = n
+            elseif p.apply then p.apply(text) p.value = text end
         end)
     end
     studio.Visible = true
-end
-
-do
-    local dragging, start, startPos
-    studio.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            start = input.Position
-            startPos = studio.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
-            local d = input.Position - start
-            studio.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y
-            )
-        end
-    end)
 end
 
 local tabButtons, tabBuilders = {}, {}
@@ -544,16 +597,13 @@ local tabButtons, tabBuilders = {}, {}
 local function clearContent()
     contentOrder = 0
     for _, ch in ipairs(content:GetChildren()) do
-        if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then
-            ch:Destroy()
-        end
+        if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then ch:Destroy() end
     end
 end
 
 local function sectionTitle(text)
     contentOrder += 1
     local t = Instance.new("TextLabel")
-    t.Name = "SectionTitle"
     t.LayoutOrder = contentOrder
     t.Size = UDim2.new(1, 0, 0, 22)
     t.BackgroundTransparency = 1
@@ -563,13 +613,11 @@ local function sectionTitle(text)
     t.TextXAlignment = Enum.TextXAlignment.Left
     t.Text = text
     t.Parent = content
-    return t
 end
 
 local function card()
     contentOrder += 1
     local f = Instance.new("Frame")
-    f.Name = "Card"
     f.LayoutOrder = contentOrder
     f.Size = UDim2.new(1, 0, 0, 0)
     f.AutomaticSize = Enum.AutomaticSize.Y
@@ -618,9 +666,7 @@ local function notify(title, msg, seconds)
     m.TextXAlignment = Enum.TextXAlignment.Left
     m.Text = msg
     m.Parent = f
-    task.delay(seconds, function()
-        if f.Parent then f:Destroy() end
-    end)
+    task.delay(seconds, function() if f.Parent then f:Destroy() end end)
 end
 
 local function addToggle(parent, text, default, callback)
@@ -675,7 +721,6 @@ local function addSlider(parent, name, min, max, default, onChange)
     cfgBtn.Size = UDim2.fromOffset(84, 20)
     cfgBtn.Position = UDim2.new(1, -84, 0, 0)
     cfgBtn.BackgroundColor3 = C.field
-    cfgBtn.BackgroundTransparency = 0.15
     cfgBtn.Font = Enum.Font.GothamBold
     cfgBtn.TextSize = 11
     cfgBtn.TextColor3 = C.accent2
@@ -701,23 +746,20 @@ local function addSlider(parent, name, min, max, default, onChange)
     end
     local dragging = false
     barBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             local rel = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1), 0, 1)
             apply(min + (max - min) * rel)
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
         if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             local rel = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1), 0, 1)
             apply(min + (max - min) * rel)
         end
@@ -759,7 +801,6 @@ local function addSliderWithPresets(parent, name, min, max, default, presets, on
     end
 end
 
--- Button: callback function OR action id string
 local function addButton(parent, text, callbackOrActionId)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 30)
@@ -778,6 +819,29 @@ local function addButton(parent, text, callbackOrActionId)
             callbackOrActionId()
         end
     end)
+end
+
+local function addTextbox(parent, placeholder, defaultText, onFocusLost)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 32)
+    box.BackgroundColor3 = C.field
+    box.PlaceholderText = placeholder or ""
+    box.PlaceholderColor3 = C.textDim
+    box.Text = defaultText or ""
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 12
+    box.TextColor3 = C.text
+    box.ClearTextOnFocus = false
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.Parent = parent
+    corner(box, 6)
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 8)
+    pad.Parent = box
+    box.FocusLost:Connect(function()
+        if onFocusLost then onFocusLost(box.Text) end
+    end)
+    return box
 end
 
 local function showTab(name)
@@ -815,12 +879,11 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
---==================== TABS ====================
+-- TABS
 addTab("LocalPlayer", function()
     sectionTitle("LocalPlayer")
     local c = card()
     addToggle(c, "Inf Jump", false, function(on)
-        if on then LOL.Run("inf_jump_on") else LOL.Run("inf_jump_off") end
         notify("LOL Hub", "Inf Jump: " .. (on and "ON" or "OFF"), 2)
     end)
     addSliderWithPresets(c, "WalkSpeed", 16, 200, 16, {16, 50, 100, 200}, function(v)
@@ -834,25 +897,12 @@ end)
 addTab("Visuals", function()
     sectionTitle("Visuals")
     local c = card()
-    addToggle(c, "Player ESP", false, function(on)
-         local FindFirstChild = game.FindFirstChild
-        if on then
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer then
-                    local char = plr.Character
-                    if char and FindFirstChild(char, "character") then
-                        local higtlight = Instance.new("Highlight")
-                        higtlight.Name = "LOL_ESP"
-                        LOL.ESP.Add(plr)
-                    end
-                end
-            end
-        else
-            LOL.ESP.Clear()
-        end
+    addToggle(c, "Player ESP", espOn, function(on)
+        setESP(on)
         notify("LOL Hub", "ESP: " .. (on and "ON" or "OFF"), 2)
     end)
-    addToggle(c, "Fullbright", false, function(on)
+    addToggle(c, "Fullbright", fbOn, function(on)
+        setFullbright(on)
         notify("LOL Hub", "Fullbright: " .. (on and "ON" or "OFF"), 2)
     end)
 end)
@@ -860,14 +910,36 @@ end)
 addTab("Webhook", function()
     sectionTitle("Webhook (beta)")
     local c = card()
-    addButton(c, "Test: Flame Fruit", "test_fruit")
-    addButton(c, "Test: custom message", function()
-        LOL.Announce("Webhook beta is working")
-        notify("LOL Hub", "Webhook sent (if URL set)", 2)
+
+    addTextbox(c, "Paste Discord webhook URL...", LOL.WebhookURL or "", function(text)
+        local url = tostring(text or ""):gsub("%s+", "")
+        LOL.WebhookURL = url
+        getgenv().LOL_WEBHOOK = url
+        notify("LOL Hub", url ~= "" and "Webhook URL saved" or "Webhook URL cleared", 2)
     end)
+
     addToggle(c, "Webhook enabled", LOL.WebhookEnabled, function(on)
         LOL.WebhookEnabled = on
         getgenv().LOL_WEBHOOK_ENABLED = on
+        notify("LOL Hub", "Webhook: " .. (on and "ON" or "OFF"), 2)
+    end)
+
+    addButton(c, "Test: Flame Fruit", function()
+        if (LOL.WebhookURL or "") == "" then
+            notify("LOL Hub", "Set webhook URL first", 3)
+            return
+        end
+        LOL.AnnounceFruit("Flame Fruit")
+        notify("LOL Hub", "Sent: Flame Fruit", 2)
+    end)
+
+    addButton(c, "Test: custom message", function()
+        if (LOL.WebhookURL or "") == "" then
+            notify("LOL Hub", "Set webhook URL first", 3)
+            return
+        end
+        LOL.Announce("Webhook beta is working")
+        notify("LOL Hub", "Sent custom message", 2)
     end)
 end)
 
@@ -912,4 +984,4 @@ task.spawn(function()
     showTab("LocalPlayer")
 end)
 
-print("[LOL Hub] UI ready | Actions + Webhook beta")
+print("[LOL Hub] UI ready | ESP + Fullbright + Webhook textbox")
