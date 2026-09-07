@@ -835,6 +835,19 @@ addTab("Visuals", function()
     sectionTitle("Visuals")
     local c = card()
     addToggle(c, "Player ESP", false, function(on)
+         local FindFirstChild = game.FindFirstChild
+        if on then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    local char = plr.Character
+                    if char and FindFirstChild(char, "HumanoidRootPart") then
+                        LOL.ESP.Add(plr)
+                    end
+                end
+            end
+        else
+            LOL.ESP.Clear()
+        end
         notify("LOL Hub", "ESP: " .. (on and "ON" or "OFF"), 2)
     end)
     addToggle(c, "Fullbright", false, function(on)
