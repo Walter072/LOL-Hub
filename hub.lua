@@ -1,26 +1,128 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local old = PlayerGui:FindFirstChild("LOLHub")
 if old then old:Destroy() end
 
+--==================== SCRIPT ZONE (callbacks) ====================
+-- Aquí pones la lógica. Los botones solo llaman LOL.Run("id")
+getgenv().LOL = getgenv().LOL or {}
+local LOL = getgenv().LOL
+LOL.Actions = LOL.Actions or {}
+
+function LOL.Register(id, fn)
+    LOL.Actions[id] = fn
+end
+
+function LOL.Run(id, ...)
+    local fn = LOL.Actions[id]
+    if type(fn) == "function" then
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            warn("[LOL] Action error:", id, err)
+        end
+        return ok
+    end
+    warn("[LOL] Unknown action:", id)
+    return false
+end
+
+--==================== WEBHOOK BETA ====================
+-- Pon tu URL o: getgenv().LOL_WEBHOOK = "https://discord.com/api/webhooks/..."
+LOL.WebhookURL = getgenv().LOL_WEBHOOK or ""
+LOL.WebhookEnabled = getgenv().LOL_WEBHOOK_ENABLED ~= false
+
+local function requestHttp(opts)
+    if syn and syn.request then return syn.request(opts) end
+    if http and http.request then return http.request(opts) end
+    if request then return request(opts) end
+    if fluxus and fluxus.request then return fluxus.request(opts) end
+    return nil
+end
+
+function LOL.Webhook(title, description, color)
+    if not LOL.WebhookEnabled or LOL.WebhookURL == "" then return end
+    color = color or 1402531
+    local body = HttpService:JSONEncode({
+        username = "LOL Hub",
+        embeds = {{
+            title = title or "LOL Hub",
+            description = description or "",
+            color = color,
+            footer = { text = "LOL Hub · webhook beta" },
+            timestamp = DateTime.now():ToIsoDate(),
+        }},
+    })
+    task.spawn(function()
+        pcall(function()
+            requestHttp({
+                Url = LOL.WebhookURL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = body,
+            })
+        end)
+    end)
+end
+
+-- Atajos beta (ejemplos)
+function LOL.AnnounceFruit(fruitName)
+    LOL.Webhook("Fruit", "You just got **" .. tostring(fruitName) .. "**", 16753920)
+end
+
+function LOL.Announce(msg)
+    LOL.Webhook("LOL Hub", tostring(msg), 1402531)
+end
+
+--==================== REGISTER YOUR SCRIPTS HERE ====================
+LOL.Register("inf_jump_on", function()
+    LOL.Announce("Inf Jump enabled")
+end)
+
+LOL.Register("inf_jump_off", function()
+    LOL.Announce("Inf Jump disabled")
+end)
+
+LOL.Register("rejoin", function()
+    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+end)
+
+LOL.Register("test_fruit", function()
+    LOL.AnnounceFruit("Flame Fruit")
+end)
+
+LOL.Register("walkspeed", function(v)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = v end
+end)
+
+LOL.Register("jumppower", function(v)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.UseJumpPower = true
+        hum.JumpPower = v
+    end
+end)
+
+--==================== COLORS / UI ====================
 local C = {
-    win      = Color3.fromRGB(18, 20, 26),
-    sidebar  = Color3.fromRGB(12, 14, 18),
-    card     = Color3.fromRGB(28, 30, 38),
-    card2    = Color3.fromRGB(22, 24, 30),
-    accent   = Color3.fromRGB(140, 25, 35),
-    accent2  = Color3.fromRGB(200, 160, 40),
-    text     = Color3.fromRGB(235, 235, 240),
-    textDim  = Color3.fromRGB(140, 145, 155),
-    stroke   = Color3.fromRGB(0, 0, 0),
-    bar      = Color3.fromRGB(80, 220, 120),
-    barBg    = Color3.fromRGB(45, 48, 58),
-    field    = Color3.fromRGB(40, 42, 52),
-    checkOn  = Color3.fromRGB(230, 190, 50),
+    win = Color3.fromRGB(18, 20, 26),
+    sidebar = Color3.fromRGB(12, 14, 18),
+    card = Color3.fromRGB(28, 30, 38),
+    card2 = Color3.fromRGB(22, 24, 30),
+    accent = Color3.fromRGB(140, 25, 35),
+    accent2 = Color3.fromRGB(200, 160, 40),
+    text = Color3.fromRGB(235, 235, 240),
+    textDim = Color3.fromRGB(140, 145, 155),
+    stroke = Color3.fromRGB(0, 0, 0),
+    bar = Color3.fromRGB(80, 220, 120),
+    barBg = Color3.fromRGB(45, 48, 58),
+    field = Color3.fromRGB(40, 42, 52),
+    checkOn = Color3.fromRGB(230, 190, 50),
     checkOff = Color3.fromRGB(55, 58, 68),
 }
 
@@ -136,9 +238,7 @@ do
             dragStart = input.Position
             startPos = toggleBtn.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -156,9 +256,7 @@ do
     end)
     toggleBtn.MouseButton1Click:Connect(function()
         if moved then return end
-        if getgenv().__LOL_ToggleHub then
-            getgenv().__LOL_ToggleHub()
-        end
+        if getgenv().__LOL_ToggleHub then getgenv().__LOL_ToggleHub() end
     end)
 end
 
@@ -183,9 +281,7 @@ do
             start = input.Position
             startPos = hub.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -355,9 +451,7 @@ studioLay.Parent = studioList
 
 local function clearStudio()
     for _, ch in ipairs(studioList:GetChildren()) do
-        if not ch:IsA("UIListLayout") then
-            ch:Destroy()
-        end
+        if not ch:IsA("UIListLayout") then ch:Destroy() end
     end
 end
 
@@ -369,7 +463,6 @@ local function studioRow(label, value, onSubmit)
     row.ZIndex = 32
     row.Parent = studioList
     corner(row, 4)
-
     local lab = Instance.new("TextLabel")
     lab.Size = UDim2.new(1, -8, 0, 14)
     lab.Position = UDim2.fromOffset(6, 2)
@@ -381,7 +474,6 @@ local function studioRow(label, value, onSubmit)
     lab.Text = label
     lab.ZIndex = 33
     lab.Parent = row
-
     local box = Instance.new("TextBox")
     box.Size = UDim2.new(1, -12, 0, 18)
     box.Position = UDim2.fromOffset(6, 18)
@@ -394,7 +486,6 @@ local function studioRow(label, value, onSubmit)
     box.ZIndex = 33
     box.Parent = row
     corner(box, 3)
-
     box.FocusLost:Connect(function()
         if onSubmit then onSubmit(box.Text) end
     end)
@@ -431,9 +522,7 @@ do
             start = input.Position
             startPos = studio.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -488,12 +577,10 @@ local function card()
     f.BackgroundTransparency = 0.2
     f.Parent = content
     corner(f, 8)
-
     local lay = Instance.new("UIListLayout")
     lay.Padding = UDim.new(0, 6)
     lay.SortOrder = Enum.SortOrder.LayoutOrder
     lay.Parent = f
-
     local pad = Instance.new("UIPadding")
     pad.PaddingTop = UDim.new(0, 8)
     pad.PaddingBottom = UDim.new(0, 8)
@@ -503,12 +590,44 @@ local function card()
     return f
 end
 
+local function notify(title, msg, seconds)
+    seconds = seconds or 3
+    local f = Instance.new("Frame")
+    f.Size = UDim2.fromOffset(230, 58)
+    f.Position = UDim2.new(1, -250, 1, -90)
+    f.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+    f.Parent = gui
+    corner(f, 8)
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1, -12, 0, 20)
+    t.Position = UDim2.fromOffset(8, 6)
+    t.BackgroundTransparency = 1
+    t.Font = Enum.Font.GothamBold
+    t.TextSize = 13
+    t.TextColor3 = C.accent2
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.Text = title
+    t.Parent = f
+    local m = Instance.new("TextLabel")
+    m.Size = UDim2.new(1, -12, 0, 24)
+    m.Position = UDim2.fromOffset(8, 26)
+    m.BackgroundTransparency = 1
+    m.Font = Enum.Font.Gotham
+    m.TextSize = 12
+    m.TextColor3 = C.textDim
+    m.TextXAlignment = Enum.TextXAlignment.Left
+    m.Text = msg
+    m.Parent = f
+    task.delay(seconds, function()
+        if f.Parent then f:Destroy() end
+    end)
+end
+
 local function addToggle(parent, text, default, callback)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 28)
     row.BackgroundTransparency = 1
     row.Parent = parent
-
     local state = default and true or false
     local box = Instance.new("TextButton")
     box.Size = UDim2.fromOffset(22, 22)
@@ -520,7 +639,6 @@ local function addToggle(parent, text, default, callback)
     box.TextColor3 = C.win
     box.Parent = row
     corner(box, 4)
-
     local lab = Instance.new("TextLabel")
     lab.Size = UDim2.new(1, -30, 1, 0)
     lab.BackgroundTransparency = 1
@@ -530,7 +648,6 @@ local function addToggle(parent, text, default, callback)
     lab.TextXAlignment = Enum.TextXAlignment.Left
     lab.Text = text
     lab.Parent = row
-
     box.MouseButton1Click:Connect(function()
         state = not state
         box.BackgroundColor3 = state and C.checkOn or C.checkOff
@@ -544,7 +661,6 @@ local function addSlider(parent, name, min, max, default, onChange)
     wrap.Size = UDim2.new(1, 0, 0, 70)
     wrap.BackgroundTransparency = 1
     wrap.Parent = parent
-
     local value = default
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -90, 0, 18)
@@ -555,7 +671,6 @@ local function addSlider(parent, name, min, max, default, onChange)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Text = string.format("Slider %s %d", name, value)
     title.Parent = wrap
-
     local cfgBtn = Instance.new("TextButton")
     cfgBtn.Size = UDim2.fromOffset(84, 20)
     cfgBtn.Position = UDim2.new(1, -84, 0, 0)
@@ -567,36 +682,29 @@ local function addSlider(parent, name, min, max, default, onChange)
     cfgBtn.Text = "Configure"
     cfgBtn.Parent = wrap
     corner(cfgBtn, 5)
-
     local barBg = Instance.new("Frame")
     barBg.Size = UDim2.new(1, 0, 0, 10)
     barBg.Position = UDim2.fromOffset(0, 28)
     barBg.BackgroundColor3 = C.barBg
     barBg.Parent = wrap
     corner(barBg, 4)
-
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / math.max(max - min, 1), 0, 1, 0)
     fill.BackgroundColor3 = C.accent
     fill.Parent = barBg
     corner(fill, 4)
-
     local function apply(v)
         value = math.clamp(math.floor(v + 0.5), min, max)
         fill.Size = UDim2.new((value - min) / math.max(max - min, 1), 0, 1, 0)
         title.Text = string.format("Slider %s %d", name, value)
         if onChange then onChange(value) end
     end
-
     local dragging = false
     barBg.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            local rel = math.clamp(
-                (input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1),
-                0, 1
-            )
+            local rel = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1), 0, 1)
             apply(min + (max - min) * rel)
         end
     end)
@@ -610,14 +718,10 @@ local function addSlider(parent, name, min, max, default, onChange)
         if not dragging then return end
         if input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch then
-            local rel = math.clamp(
-                (input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1),
-                0, 1
-            )
+            local rel = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X, 1), 0, 1)
             apply(min + (max - min) * rel)
         end
     end)
-
     cfgBtn.MouseButton1Click:Connect(function()
         openStudio({
             { name = name, value = value, apply = function(n) apply(n) end },
@@ -625,11 +729,38 @@ local function addSlider(parent, name, min, max, default, onChange)
             { name = "Max", value = max, apply = function() end },
         })
     end)
-
     return apply
 end
 
-local function addButton(parent, text, callback)
+local function addSliderWithPresets(parent, name, min, max, default, presets, onChange)
+    local apply = addSlider(parent, name, min, max, default, onChange)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.BackgroundTransparency = 1
+    row.Parent = parent
+    local lay = Instance.new("UIListLayout")
+    lay.FillDirection = Enum.FillDirection.Horizontal
+    lay.Padding = UDim.new(0, 6)
+    lay.Parent = row
+    for _, n in ipairs(presets) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.fromOffset(44, 22)
+        b.BackgroundColor3 = C.field
+        b.Text = tostring(n)
+        b.TextColor3 = C.text
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 11
+        b.Parent = row
+        corner(b, 5)
+        b.MouseButton1Click:Connect(function()
+            if apply then apply(n) end
+            notify("LOL Hub", name .. " = " .. tostring(n), 2)
+        end)
+    end
+end
+
+-- Button: callback function OR action id string
+local function addButton(parent, text, callbackOrActionId)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 30)
     b.BackgroundColor3 = C.accent
@@ -641,7 +772,11 @@ local function addButton(parent, text, callback)
     b.Parent = parent
     corner(b, 6)
     b.MouseButton1Click:Connect(function()
-        if callback then callback() end
+        if type(callbackOrActionId) == "string" then
+            LOL.Run(callbackOrActionId)
+        elseif type(callbackOrActionId) == "function" then
+            callbackOrActionId()
+        end
     end)
 end
 
@@ -653,9 +788,7 @@ local function showTab(name)
         btn.TextColor3 = on and C.text or C.textDim
     end
     clearContent()
-    if tabBuilders[name] then
-        tabBuilders[name]()
-    end
+    if tabBuilders[name] then tabBuilders[name]() end
 end
 
 local function addTab(name, builder)
@@ -672,9 +805,7 @@ local function addTab(name, builder)
     b.Parent = tabScroll
     corner(b, 6)
     tabButtons[name] = b
-    b.MouseButton1Click:Connect(function()
-        showTab(name)
-    end)
+    b.MouseButton1Click:Connect(function() showTab(name) end)
 end
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -684,98 +815,45 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
+--==================== TABS ====================
 addTab("LocalPlayer", function()
     sectionTitle("LocalPlayer")
     local c = card()
     addToggle(c, "Inf Jump", false, function(on)
-        print("InfJump", on)
+        if on then LOL.Run("inf_jump_on") else LOL.Run("inf_jump_off") end
+        notify("LOL Hub", "Inf Jump: " .. (on and "ON" or "OFF"), 2)
     end)
-    addSlider(c, "WalkSpeed", 16, 200, 16, function(v)
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = v end
+    addSliderWithPresets(c, "WalkSpeed", 16, 200, 16, {16, 50, 100, 200}, function(v)
+        LOL.Run("walkspeed", v)
     end)
-    local function notify(title, msg, seconds)
-    seconds = seconds or 3
-    local f = Instance.new("Frame")
-    f.Size = UDim2.fromOffset(230, 58)
-    f.Position = UDim2.new(1, -250, 1, -90)
-    f.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
-    f.Parent = gui
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 8)
-    c.Parent = f
-
-    local t = Instance.new("TextLabel")
-    t.Size = UDim2.new(1, -12, 0, 20)
-    t.Position = UDim2.fromOffset(8, 6)
-    t.BackgroundTransparency = 1
-    t.Font = Enum.Font.GothamBold
-    t.TextSize = 13
-    t.TextColor3 = Color3.fromRGB(200, 160, 40)
-    t.TextXAlignment = Enum.TextXAlignment.Left
-    t.Text = title
-    t.Parent = f
-
-    local m = Instance.new("TextLabel")
-    m.Size = UDim2.new(1, -12, 0, 24)
-    m.Position = UDim2.fromOffset(8, 26)
-    m.BackgroundTransparency = 1
-    m.Font = Enum.Font.Gotham
-    m.TextSize = 12
-    m.TextColor3 = Color3.fromRGB(200, 200, 210)
-    m.TextXAlignment = Enum.TextXAlignment.Left
-    m.Text = msg
-    m.Parent = f
-
-    task.delay(seconds, function()
-        if f.Parent then f:Destroy() end
-    end)
-end
-
-local function addSliderWithPresets(parent, name, min, max, default, presets, onChange)
-    local apply = addSlider(parent, name, min, max, default, onChange)
-
-    local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 26)
-    row.BackgroundTransparency = 1
-    row.Parent = parent
-
-    local lay = Instance.new("UIListLayout")
-    lay.FillDirection = Enum.FillDirection.Horizontal
-    lay.Padding = UDim.new(0, 6)
-    lay.Parent = row
-
-    for _, n in ipairs(presets) do
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.fromOffset(44, 22)
-        b.BackgroundColor3 = Color3.fromRGB(40, 42, 52)
-        b.Text = tostring(n)
-        b.TextColor3 = Color3.fromRGB(235, 235, 240)
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = 11
-        b.Parent = row
-        local cc = Instance.new("UICorner")
-        cc.CornerRadius = UDim.new(0, 5)
-        cc.Parent = b
-        b.MouseButton1Click:Connect(function()
-            if apply then apply(n) end
-            notify("LOL Hub", name .. " = " .. tostring(n), 2)
-        end)
-    end
-    addSlider(c, "JumpPower", 50, 200, 50, function(v)
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.UseJumpPower = true
-            hum.JumpPower = v
-        end
+    addSliderWithPresets(c, "JumpPower", 50, 200, 50, {50, 75, 100, 150}, function(v)
+        LOL.Run("jumppower", v)
     end)
 end)
 
 addTab("Visuals", function()
     sectionTitle("Visuals")
     local c = card()
-    addToggle(c, "Player ESP", false, function(on) print("ESP", on) end)
-    addToggle(c, "Fullbright", false, function(on) print("FB", on) end)
+    addToggle(c, "Player ESP", false, function(on)
+        notify("LOL Hub", "ESP: " .. (on and "ON" or "OFF"), 2)
+    end)
+    addToggle(c, "Fullbright", false, function(on)
+        notify("LOL Hub", "Fullbright: " .. (on and "ON" or "OFF"), 2)
+    end)
+end)
+
+addTab("Webhook", function()
+    sectionTitle("Webhook (beta)")
+    local c = card()
+    addButton(c, "Test: Flame Fruit", "test_fruit")
+    addButton(c, "Test: custom message", function()
+        LOL.Announce("Webhook beta is working")
+        notify("LOL Hub", "Webhook sent (if URL set)", 2)
+    end)
+    addToggle(c, "Webhook enabled", LOL.WebhookEnabled, function(on)
+        LOL.WebhookEnabled = on
+        getgenv().LOL_WEBHOOK_ENABLED = on
+    end)
 end)
 
 addTab("Settings", function()
@@ -783,23 +861,22 @@ addTab("Settings", function()
     local c = card()
     addToggle(c, "Studio editor (Configure)", getgenv().LOL_StudioEditor ~= false, function(on)
         getgenv().LOL_StudioEditor = on
-        if not on then
-            studio.Visible = false
-        end
+        if not on then studio.Visible = false end
     end)
 end)
 
 addTab("Misc", function()
     sectionTitle("Misc")
     local c = card()
-    addButton(c, "Rejoin", function()
-        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
-    end)
+    addButton(c, "Rejoin", "rejoin")
 end)
+
 addTab("Credits", function()
     sectionTitle("Credits")
     local c = card()
-    addButton(c, "LOL Hub by LOL", function() end)
+    addButton(c, "LOL Hub", function()
+        notify("LOL Hub", "Made for friends", 2)
+    end)
 end)
 
 local hubOpen = false
@@ -820,4 +897,4 @@ task.spawn(function()
     showTab("LocalPlayer")
 end)
 
-print("[LOL Hub] UI ready")
+print("[LOL Hub] UI ready | Actions + Webhook beta")
