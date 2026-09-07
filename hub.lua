@@ -840,7 +840,9 @@ addTab("Visuals", function()
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer then
                     local char = plr.Character
-                    if char and FindFirstChild(char, "HumanoidRootPart") then
+                    if char and FindFirstChild(char, "character") then
+                        local higtlight = Instance.new("Highlight")
+                        higtlight.Name = "LOL_ESP"
                         LOL.ESP.Add(plr)
                     end
                 end
