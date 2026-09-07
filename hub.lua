@@ -694,6 +694,75 @@ addTab("LocalPlayer", function()
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.WalkSpeed = v end
     end)
+     then
+    local function notify(title, msg, seconds)
+    seconds = seconds or 3
+    local f = Instance.new("Frame")
+    f.Size = UDim2.fromOffset(230, 58)
+    f.Position = UDim2.new(1, -250, 1, -90)
+    f.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+    f.Parent = gui
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = f
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1, -12, 0, 20)
+    t.Position = UDim2.fromOffset(8, 6)
+    t.BackgroundTransparency = 1
+    t.Font = Enum.Font.GothamBold
+    t.TextSize = 13
+    t.TextColor3 = Color3.fromRGB(200, 160, 40)
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.Text = title
+    t.Parent = f
+
+    local m = Instance.new("TextLabel")
+    m.Size = UDim2.new(1, -12, 0, 24)
+    m.Position = UDim2.fromOffset(8, 26)
+    m.BackgroundTransparency = 1
+    m.Font = Enum.Font.Gotham
+    m.TextSize = 12
+    m.TextColor3 = Color3.fromRGB(200, 200, 210)
+    m.TextXAlignment = Enum.TextXAlignment.Left
+    m.Text = msg
+    m.Parent = f
+
+    task.delay(seconds, function()
+        if f.Parent then f:Destroy() end
+    end)
+end
+
+local function addSliderWithPresets(parent, name, min, max, default, presets, onChange)
+    local apply = addSlider(parent, name, min, max, default, onChange)
+
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.BackgroundTransparency = 1
+    row.Parent = parent
+
+    local lay = Instance.new("UIListLayout")
+    lay.FillDirection = Enum.FillDirection.Horizontal
+    lay.Padding = UDim.new(0, 6)
+    lay.Parent = row
+
+    for _, n in ipairs(presets) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.fromOffset(44, 22)
+        b.BackgroundColor3 = Color3.fromRGB(40, 42, 52)
+        b.Text = tostring(n)
+        b.TextColor3 = Color3.fromRGB(235, 235, 240)
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 11
+        b.Parent = row
+        local cc = Instance.new("UICorner")
+        cc.CornerRadius = UDim.new(0, 5)
+        cc.Parent = b
+        b.MouseButton1Click:Connect(function()
+            if apply then apply(n) end
+            notify("LOL Hub", name .. " = " .. tostring(n), 2)
+        end)
+    end
     addSlider(c, "JumpPower", 50, 200, 50, function(v)
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then
