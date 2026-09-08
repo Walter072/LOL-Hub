@@ -8,3 +8,4 @@ getgenv().__LOL_ToggleHub = function()
     end
      game:getservice("Players").LocalPlayer.PlayerGui:FindFirstChild("LOL Hub").Enabled = hubOpen
 end
+print("Coming soon")
