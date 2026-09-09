@@ -178,19 +178,36 @@ local function setNoAnims(on)
     end
 end
 
---========== ANTI SLOW ==========
+--========== SPEED / ANTI SLOW ==========
+getgenv().LOL_WalkSpeed = getgenv().LOL_WalkSpeed or 16
+getgenv().LOL_JumpPower = getgenv().LOL_JumpPower or 50
+if getgenv().LOL_LockSpeed == nil then
+    getgenv().LOL_LockSpeed = true
+end
+
 local antiSlowOn = false
-local antiSlowConn = nil
-local TARGET_SPEED = 16
-local TARGET_JUMP = 50
+
+local function applyMovement()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    hum.WalkSpeed = getgenv().LOL_WalkSpeed
+    hum.UseJumpPower = true
+    hum.JumpPower = getgenv().LOL_JumpPower
+end
+
 local function applyAntiSlow()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if hum then
-        if hum.WalkSpeed < TARGET_SPEED then hum.WalkSpeed = TARGET_SPEED end
+        if hum.WalkSpeed < getgenv().LOL_WalkSpeed then
+            hum.WalkSpeed = getgenv().LOL_WalkSpeed
+        end
         hum.UseJumpPower = true
-        if hum.JumpPower < TARGET_JUMP then hum.JumpPower = TARGET_JUMP end
+        if hum.JumpPower < getgenv().LOL_JumpPower then
+            hum.JumpPower = getgenv().LOL_JumpPower
+        end
     end
     if hrp then
         for _, obj in ipairs(hrp:GetChildren()) do
@@ -200,28 +217,34 @@ local function applyAntiSlow()
         end
     end
 end
+
+-- Un solo Heartbeat para lock + anti-slow
+RunService.Heartbeat:Connect(function()
+    if getgenv().LOL_LockSpeed then
+        applyMovement()
+    end
+    if antiSlowOn then
+        applyAntiSlow()
+    end
+end)
+
 local function setAntiSlow(on)
     antiSlowOn = on
-    if antiSlowConn then antiSlowConn:Disconnect() antiSlowConn = nil end
-    if on then
-        antiSlowConn = RunService.Heartbeat:Connect(function()
-            if antiSlowOn then applyAntiSlow() end
-        end)
-    end
 end
 
 LOL.Register("rejoin", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
+
 LOL.Register("walkspeed", function(v)
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed = v end
-    TARGET_SPEED = v -- anti-slow usa este valor
+    getgenv().LOL_WalkSpeed = tonumber(v) or 16
+    getgenv().LOL_LockSpeed = true
+    applyMovement()
 end)
+
 LOL.Register("jumppower", function(v)
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.UseJumpPower = true hum.JumpPower = v end
-    TARGET_JUMP = v
+    getgenv().LOL_JumpPower = tonumber(v) or 50
+    applyMovement()
 end)
 
 --========== UI ==========
@@ -645,20 +668,30 @@ local function addTab(name, builder)
     b.MouseButton1Click:Connect(function() showTab(name) end)
 end
 
--- TABS
 addTab("LocalPlayer", function()
     sectionTitle("LocalPlayer")
     local c = card()
-    addSlider(c, "WalkSpeed", 16, 200, TARGET_SPEED, function(v)
+
+    addSlider(c, "WalkSpeed", 16, 200, getgenv().LOL_WalkSpeed or 16, function(v)
         LOL.Run("walkspeed", v)
+        notify("LOL Hub", "WalkSpeed " .. tostring(v))
     end)
-    addSlider(c, "JumpPower", 50, 200, TARGET_JUMP, function(v)
+
+    addSlider(c, "JumpPower", 50, 200, getgenv().LOL_JumpPower or 50, function(v)
         LOL.Run("jumppower", v)
     end)
+
+    addToggle(c, "Lock Speed (force)", getgenv().LOL_LockSpeed ~= false, function(on)
+        getgenv().LOL_LockSpeed = on
+        if on then applyMovement() end
+        notify("LOL Hub", "Lock Speed: " .. (on and "ON" or "OFF"))
+    end)
+
     addToggle(c, "Anti Slow", antiSlowOn, function(on)
         setAntiSlow(on)
         notify("LOL Hub", "Anti Slow: " .. (on and "ON" or "OFF"))
     end)
+
     addToggle(c, "No Animations", noAnimsOn, function(on)
         setNoAnims(on)
         notify("LOL Hub", "No Anims: " .. (on and "ON" or "OFF"))
@@ -696,6 +729,15 @@ addTab("Webhook", function()
         end
         LOL.Webhook("Test", "Webhook OK from LOL Hub")
         notify("LOL Hub", "Sent")
+    end)
+end)
+
+addTab("Settings", function()
+    sectionTitle("Settings")
+    local c = card()
+    local editorToggle = addToggle(c, "Studio Editor", getgenv().LOL_StudioEditor, function(on)
+        getgenv().LOL_StudioEditor = on
+        notify("LOL Hub", "Studio Editor: " .. (on and "ON" or "OFF"))
     end)
 end)
 
