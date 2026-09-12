@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -11,8 +10,6 @@ local LOL = loadstring(game:HttpGet("https://raw.githubusercontent.com/Walter072
 getgenv().LOL = getgenv().LOL or {}
 local State = getgenv().LOL
 State.Actions = State.Actions or {}
-State.WebhookURL = getgenv().LOL_WEBHOOK or State.WebhookURL or ""
-State.WebhookEnabled = getgenv().LOL_WEBHOOK_ENABLED ~= false
 
 getgenv().LOL_WalkSpeed = tonumber(getgenv().LOL_WalkSpeed) or 16
 getgenv().LOL_JumpPower = tonumber(getgenv().LOL_JumpPower) or 50
@@ -26,38 +23,6 @@ function State.Run(id, ...)
         local ok, err = pcall(fn, ...)
         if not ok then warn("[LOL]", id, err) end
     end
-end
-
-local function requestHttp(opts)
-    if syn and syn.request then return syn.request(opts) end
-    if http and http.request then return http.request(opts) end
-    if request then return request(opts) end
-    return nil
-end
-
-function State.Webhook(title, description, color)
-    if not State.WebhookEnabled then return end
-    local url = State.WebhookURL or ""
-    if url == "" then return end
-    local body = HttpService:JSONEncode({
-        username = "LOL Hub",
-        embeds = {{
-            title = title or "LOL Hub",
-            description = description or "",
-            color = color or 1402531,
-            footer = { text = "LOL Hub" },
-        }},
-    })
-    task.spawn(function()
-        pcall(function()
-            requestHttp({
-                Url = url,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = body,
-            })
-        end)
-    end)
 end
 
 local function getHum()
@@ -337,45 +302,6 @@ VisualsSection:CreateToggle({
     end,
 })
 
-local WebhookTab = Window:CreateTab({ Name = "Webhook" })
-
-local WebhookSection = WebhookTab:CreateSection({ Name = "Webhook" })
-
-WebhookSection:CreateTextbox({
-    Name = "Webhook URL",
-    PlaceholderText = "Discord webhook URL...",
-    CurrentValue = State.WebhookURL,
-    Callback = function(text)
-        State.WebhookURL = tostring(text):gsub("%s+", "")
-        getgenv().LOL_WEBHOOK = State.WebhookURL
-        LOL:Notify({
-            Title = "LOL Hub",
-            Content = State.WebhookURL ~= "" and "URL saved" or "URL cleared",
-            Duration = 1.5,
-        })
-    end,
-})
-
-WebhookSection:CreateToggle({
-    Name = "Webhook enabled",
-    CurrentValue = State.WebhookEnabled,
-    Callback = function(on)
-        State.WebhookEnabled = on
-    end,
-})
-
-WebhookSection:CreateButton({
-    Name = "Test webhook",
-    Callback = function()
-        if State.WebhookURL == "" then
-            LOL:Notify({ Title = "LOL Hub", Content = "Set URL first", Duration = 1.5 })
-            return
-        end
-        State.Webhook("Test", "Webhook OK from LOL Hub")
-        LOL:Notify({ Title = "LOL Hub", Content = "Sent", Duration = 1.5 })
-    end,
-})
-
 local SettingsTab = Window:CreateTab({ Name = "Settings" })
 
 local GeneralSection = SettingsTab:CreateSection({ Name = "General" })
@@ -408,7 +334,7 @@ task.spawn(function()
     if getgenv().LOL_LockSpeed then applyMovement() end
     LOL:Notify({
         Title = "LOL Hub",
-        Content = "Cargado correctamente · " .. #State.Actions .. " acciones",
+        Content = "Cargado correctamente",
         Duration = 3,
     })
 end)
